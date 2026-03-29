@@ -15,7 +15,7 @@ def generate_script(topic: str) -> dict:
     print(f"📝 Script তৈরি হচ্ছে: '{topic}'")
 
     genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
 
     prompt = f"""You are a YouTube script writer for a Bengali 2D animation channel.
 
@@ -69,7 +69,7 @@ def get_trending_topic() -> str:
     Gemini দিয়ে trending/interesting topic suggest করায়
     """
     genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
 
     prompt = """Suggest ONE interesting YouTube video topic for a Bengali 2D animation channel.
 Topic should be: educational or storytelling, interesting for Bangladeshi audience, trending or evergreen.
