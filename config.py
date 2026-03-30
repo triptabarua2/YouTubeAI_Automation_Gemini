@@ -7,7 +7,7 @@ TELEGRAM_BOT_TOKEN = "7726501373:AAGdsvnmdMnXY0UYqDwy3rDrqPRTEhnbMk4"
 TELEGRAM_CHAT_ID   = "5697098066"
 
 # ✅ Google Gemini — script লেখার জন্য (ফ্রি)
-GOOGLE_API_KEY = "YOUR_GOOGLE_API_KEY"
+GOOGLE_API_KEY = "AIzaSyBZy4LeJVKY_kbRBRxd1ipPXGEFtmKaFck"
 
 # ✅ ElevenLabs — voiceover (মাসে ১০,০০০ chars ফ্রি)
 ELEVENLABS_API_KEY     = "YOUR_ELEVENLABS_API_KEY"
