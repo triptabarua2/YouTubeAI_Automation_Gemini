@@ -1,0 +1,7 @@
+temp/
+output/
+__pycache__/
+*.pyc
+*.pickle
+config.py
+client_secret.json
