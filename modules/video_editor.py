@@ -278,7 +278,7 @@ def create_video(scenes, image_paths, audio_paths,
             if bgm.duration < final.duration:
                 n   = int(final.duration / bgm.duration) + 1
                 bgm = concatenate_audioclips([bgm] * n)
-            bgm   = bgm.subclip(0, final.duration) # ✅ Fixed: MoviePy v2 uses subclip instead of with_section
+            bgm   = bgm.subclipped(0, final.duration)  # ✅ MoviePy v2 correct method
             final = final.with_audio(CompositeAudioClip([final.audio, bgm]))
         except Exception as e:
             print(f"  ⚠️ Music error: {e}")
