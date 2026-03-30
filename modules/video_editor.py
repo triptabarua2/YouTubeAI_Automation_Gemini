@@ -1,294 +1,259 @@
 # modules/video_editor.py
-# Character-driven video — 2D character মূল presenter হিসেবে থাকবে
-# Features:
-#   - সাদা background auto-remove (transparent character)
-#   - Breathing + talking animation
-#   - Slide-in entrance effect
-#   - Scene background (AI generated) পেছনে, character সামনে
-#   - নিচে subtitle bar
+# FUNNY Animation Video — emotion-based character animations
+#
+# Emotions:
+#   shocked       → jump up + shake
+#   laughing      → fast bounce + wobble
+#   facepalm      → lean + droop
+#   jumping       → big bounce loop
+#   confused      → head tilt
+#   proud         → puff up
+#   scared        → rapid shake
+#   crying_laugh  → bounce + tilt
+#   default       → breathing + talking pulse
 
 import os
-import random
+import math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from moviepy import (
-    VideoClip, ImageClip, AudioFileClip, CompositeAudioClip,
-    concatenate_videoclips, CompositeVideoClip, ColorClip
+    VideoClip, AudioFileClip, CompositeAudioClip,
+    concatenate_videoclips, CompositeVideoClip
 )
 
 OUTPUT_DIR = "output"
 ASSETS_DIR = "assets"
-CHAR_CACHE  = os.path.join(ASSETS_DIR, "character_transparent.png")  # processed একবার
+CHAR_CACHE = os.path.join(ASSETS_DIR, "character_transparent.png")
+VIDEO_W, VIDEO_H = 1920, 1080
 
 
-# ──────────────────────────────────────────────────────────────
-#  1. সাদা background remove করা (একবারই করা হবে)
-# ──────────────────────────────────────────────────────────────
+# ── 1. Background Remove ──────────────────────────────────────
 
-def remove_white_background(src_path: str, dst_path: str, threshold: int = 230) -> str:
-    """
-    character.png-এর সাদা background সরিয়ে transparent PNG বানায়।
-    threshold: 0-255 — বেশি হলে বেশি সাদা remove হবে
-    """
-    img = Image.open(src_path).convert("RGBA")
+def remove_white_background(src: str, dst: str, threshold: int = 230) -> str:
+    img  = Image.open(src).convert("RGBA")
     data = np.array(img, dtype=np.float32)
-
     r, g, b, a = data[:,:,0], data[:,:,1], data[:,:,2], data[:,:,3]
-
-    # সাদার কাছাকাছি pixel গুলো transparent করা
-    white_mask = (r > threshold) & (g > threshold) & (b > threshold)
-
-    # Edge softening — হার্ড কাটা না হয়ে smooth হবে
-    from PIL import ImageFilter
-    mask_img = Image.fromarray(white_mask.astype(np.uint8) * 255, "L")
-    mask_img = mask_img.filter(ImageFilter.GaussianBlur(radius=1))
-    soft_mask = np.array(mask_img) / 255.0
-
-    data[:,:,3] = a * (1.0 - soft_mask)
-    result = Image.fromarray(data.astype(np.uint8), "RGBA")
-    result.save(dst_path, "PNG")
-    print(f"  ✅ Character background removed → {dst_path}")
-    return dst_path
+    white = (r > threshold) & (g > threshold) & (b > threshold)
+    mask  = Image.fromarray(white.astype(np.uint8) * 255, "L")
+    mask  = mask.filter(ImageFilter.GaussianBlur(radius=1))
+    data[:,:,3] = a * (1 - np.array(mask) / 255.0)
+    Image.fromarray(data.astype(np.uint8), "RGBA").save(dst, "PNG")
+    print(f"  ✅ Background removed → {dst}")
+    return dst
 
 
-def get_character_image() -> Image.Image:
-    """Character PNG load করে (processed transparent version)"""
-    char_src = os.path.join(ASSETS_DIR, "character.png")
-
-    if not os.path.exists(char_src):
-        print("  ⚠️ character.png পাওয়া যায়নি")
-        return None
-
-    # একবার process করলে cache use করে
+def get_character_image():
+    src = os.path.join(ASSETS_DIR, "character.png")
+    if not os.path.exists(src):
+        print("  ⚠️ character.png নেই"); return None
     if not os.path.exists(CHAR_CACHE):
         os.makedirs(ASSETS_DIR, exist_ok=True)
-        remove_white_background(char_src, CHAR_CACHE)
-
+        remove_white_background(src, CHAR_CACHE)
     return Image.open(CHAR_CACHE).convert("RGBA")
 
 
-# ──────────────────────────────────────────────────────────────
-#  2. Ken Burns effect — background-এর জন্য
-# ──────────────────────────────────────────────────────────────
+# ── 2. Background Ken Burns ───────────────────────────────────
 
-def make_background_clip(image_path: str, duration: float, effect: str = "in") -> VideoClip:
-    """AI-generated scene image-এ Ken Burns effect"""
+def make_background_clip(image_path: str, duration: float, effect: str) -> VideoClip:
     img = Image.open(image_path).convert("RGB")
     W, H = img.size
-    arr = np.array(img)
+    arr  = np.array(img)
 
-    def make_frame(t):
+    def frame(t):
         p = t / duration
-        if effect == "in":
-            scale = 1.0 + 0.12 * p
-        elif effect == "out":
-            scale = 1.12 - 0.12 * p
-        elif effect == "pan_right":
-            scale = 1.1
-        elif effect == "pan_left":
-            scale = 1.1
-        else:
-            scale = 1.05
+        scale = {"in": 1.0+0.12*p, "out": 1.12-0.12*p,
+                 "pan_right": 1.1, "pan_left": 1.1}.get(effect, 1.05)
+        nw, nh = int(W*scale), int(H*scale)
+        res  = Image.fromarray(arr).resize((nw, nh), Image.Resampling.LANCZOS)
+        left = (nw-W)//2; top = (nh-H)//2
+        if effect == "pan_right": left = int(p*(nw-W))
+        if effect == "pan_left":  left = int((1-p)*(nw-W))
+        return np.array(res.crop((left, top, left+W, top+H)))
 
-        nw, nh = int(W * scale), int(H * scale)
-        resized = Image.fromarray(arr).resize((nw, nh), Image.Resampling.LANCZOS)
-
-        left = (nw - W) // 2
-        top  = (nh - H) // 2
-
-        if effect == "pan_right":
-            left = int(p * (nw - W))
-        elif effect == "pan_left":
-            left = int((1 - p) * (nw - W))
-
-        cropped = resized.crop((left, top, left + W, top + H))
-        return np.array(cropped)
-
-    return VideoClip(make_frame, duration=duration).with_fps(24)
+    return VideoClip(frame, duration=duration).with_fps(24)
 
 
-# ──────────────────────────────────────────────────────────────
-#  3. Character animation frame builder
-# ──────────────────────────────────────────────────────────────
+# ── 3. Emotion Animations ─────────────────────────────────────
 
-def make_character_frames(char_img: Image.Image, video_w: int, video_h: int,
-                           duration: float, side: str = "right",
-                           entrance: bool = True) -> VideoClip:
-    """
-    Character-এর animated clip বানায়।
-    Animations:
-      - Breathing: ওপর-নিচে ধীরে ওঠানামা
-      - Talking: হালকা scale pulse (বলার সময় একটু নড়াচড়া)
-      - Entrance: নিচ থেকে slide-in (প্রথম ০.৪ সেকেন্ড)
-      - Head bob: খুব সূক্ষ্ম বাঁয়ে-ডানে দোলা
-    """
-    # Character size: video height-এর ৬৫%
-    target_h = int(video_h * 0.65)
-    ratio    = target_h / char_img.height
-    target_w = int(char_img.width * ratio)
-    char_resized = char_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
-    char_arr = np.array(char_resized)  # RGBA
+def emotion_transform(emotion: str, t: float, duration: float):
+    """Returns (dx, dy, scale, rotation_deg)"""
+    e = emotion.lower()
 
-    # Position
-    margin = 40
-    if side == "right":
-        base_x = video_w - target_w - margin
-    else:
-        base_x = margin
-    base_y = video_h - target_h  # পায়ের কাছে নিচে
+    if e == "shocked":
+        jump  = -45 * math.exp(-8*(t-0.15)**2) if t < 0.6 else 0
+        shake = 4 * math.sin(2*math.pi*12*t) * math.exp(-5*t)
+        scale = 1.0 + 0.10 * math.exp(-6*(t-0.15)**2)
+        return (shake, jump, scale, shake*0.5)
 
-    entrance_frames = int(0.4 * 24)  # ০.৪ সেকেন্ড entrance
+    elif e == "laughing":
+        bounce = -20 * abs(math.sin(2*math.pi*4*t))
+        wobble = 7  * math.sin(2*math.pi*4*t)
+        return (0, bounce, 1.0, wobble)
+
+    elif e == "facepalm":
+        lean = -35 * min(t/0.5, 1)
+        drp  =  18 * min(t/0.5, 1)
+        rot  = -12 * min(t/0.5, 1)
+        return (lean, drp, 1.0-0.04*min(t/0.5,1), rot)
+
+    elif e == "jumping":
+        bounce = -60 * abs(math.sin(2*math.pi*1.8*t))
+        sc     = 1.0 + 0.06 * abs(math.sin(2*math.pi*1.8*t))
+        return (0, bounce, sc, 0)
+
+    elif e == "confused":
+        tilt = 18 * math.sin(2*math.pi*0.7*t)
+        return (0, 0, 1.0, tilt)
+
+    elif e == "proud":
+        rise = -12 * min(t/0.7, 1)
+        sc   = 1.0 + 0.09 * min(t/0.7, 1)
+        return (0, rise, sc, 0)
+
+    elif e == "scared":
+        shake = 9 * math.sin(2*math.pi*14*t)
+        sc    = 1.0 - 0.04*abs(math.sin(2*math.pi*14*t))
+        return (shake, 0, sc, 0)
+
+    elif e == "crying_laugh":
+        bounce = -14 * abs(math.sin(2*math.pi*3*t))
+        tilt   =  8  * math.sin(2*math.pi*1.5*t)
+        return (5*math.sin(2*math.pi*3*t), bounce, 1.0, tilt)
+
+    else:  # default: breathing + talking
+        return (
+            3  * math.sin(2*math.pi*0.2*t),
+            5  * math.sin(2*math.pi*0.4*t),
+            1.0 + 0.012 * math.sin(2*math.pi*3.5*t),
+            0
+        )
+
+
+def make_character_clip(char_img: Image.Image, duration: float,
+                         emotion: str, side: str, entrance: bool) -> VideoClip:
+    target_h = int(VIDEO_H * 0.65)
+    target_w = int(char_img.width * (target_h / char_img.height))
+    char_r   = char_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+
+    margin = 50
+    base_x = (VIDEO_W - target_w - margin) if side == "right" else margin
+    base_y = VIDEO_H - target_h
+    entrance_dur = 0.45
 
     def make_frame(t):
-        # ── Animations ──
-        # 1. Breathing: 0.4 Hz sine
-        breathe_y = int(6 * np.sin(2 * np.pi * 0.4 * t))
-
-        # 2. Talking pulse: ছোট scale variation
-        talk_scale = 1.0 + 0.012 * np.sin(2 * np.pi * 3.5 * t)
-
-        # 3. Head bob: ০.২ Hz, ±৩px horizontal
-        head_x = int(3 * np.sin(2 * np.pi * 0.2 * t))
-
-        # 4. Entrance slide-in
-        frame_idx = int(t * 24)
-        if entrance and frame_idx < entrance_frames:
-            progress   = frame_idx / entrance_frames
-            ease       = 1 - (1 - progress) ** 3  # ease-out cubic
-            slide_y    = int((1 - ease) * target_h)
+        # entrance slide
+        if entrance and t < entrance_dur:
+            ease    = 1 - (1 - t/entrance_dur)**3
+            slide_y = int((1-ease)*(target_h + 80))
         else:
             slide_y = 0
 
-        cur_y = base_y + breathe_y + slide_y
-        cur_x = base_x + head_x
+        dx, dy, scale, rot = emotion_transform(emotion, t, duration)
 
-        # ── Canvas ── (transparent RGBA)
-        canvas = Image.new("RGBA", (video_w, video_h), (0, 0, 0, 0))
+        cur_w = int(target_w * scale)
+        cur_h = int(target_h * scale)
+        ch = char_r.resize((cur_w, cur_h), Image.Resampling.LANCZOS) if abs(scale-1)>0.005 else char_r.copy()
 
-        # Talking scale apply
-        if abs(talk_scale - 1.0) > 0.001:
-            new_w = int(target_w * talk_scale)
-            new_h = int(target_h * talk_scale)
-            char_frame = Image.fromarray(char_arr).resize(
-                (new_w, new_h), Image.Resampling.LANCZOS)
-            # Center adjust
-            cur_x -= (new_w - target_w) // 2
-            cur_y -= (new_h - target_h)
-        else:
-            char_frame = Image.fromarray(char_arr)
+        if abs(rot) > 0.1:
+            ch = ch.rotate(rot, resample=Image.Resampling.BICUBIC,
+                            expand=False, center=(cur_w//2, cur_h))
 
-        # Character paste
-        canvas.paste(char_frame, (cur_x, cur_y), char_frame)
+        cx = int(base_x + dx) + (target_w - cur_w)//2
+        cy = int(base_y + dy) + slide_y + (target_h - cur_h)
 
+        canvas = Image.new("RGBA", (VIDEO_W, VIDEO_H), (0,0,0,0))
+        canvas.paste(ch, (cx, cy), ch)
         return np.array(canvas)
 
-    def make_mask(t):
-        frame = make_frame(t)
-        return frame[:, :, 3] / 255.0
-
-    rgb_clip  = VideoClip(lambda t: make_frame(t)[:, :, :3], duration=duration)
-    mask_clip = VideoClip(make_mask, duration=duration, is_mask=True)
-    return rgb_clip.with_mask(mask_clip).with_fps(24)
-
-
-# ──────────────────────────────────────────────────────────────
-#  4. Subtitle bar
-# ──────────────────────────────────────────────────────────────
-
-def make_subtitle_clip(text: str, video_w: int, video_h: int, duration: float) -> VideoClip:
-    """নিচে semi-transparent subtitle bar"""
-    bar_h = 110
-
-    def make_frame(t):
-        canvas = Image.new("RGBA", (video_w, video_h), (0, 0, 0, 0))
-        draw   = ImageDraw.Draw(canvas)
-
-        # Gradient bar
-        for y in range(bar_h):
-            alpha = int(180 * (1 - y / bar_h * 0.3))
-            draw.line([(0, video_h - bar_h + y), (video_w, video_h - bar_h + y)],
-                      fill=(10, 10, 30, alpha))
-
-        # Text
-        display = text[:72] + "..." if len(text) > 72 else text
-        try:
-            font = ImageFont.load_default(size=34)
-        except TypeError:
-            font = ImageFont.load_default()
-
-        # Shadow
-        draw.text((video_w // 2 + 2, video_h - bar_h // 2 + 2),
-                  display, fill=(0, 0, 0, 200), anchor="mm", font=font)
-        # Main text
-        draw.text((video_w // 2, video_h - bar_h // 2),
-                  display, fill=(255, 255, 255, 255), anchor="mm", font=font)
-
-        return np.array(canvas)
-
-    def make_mask(t):
-        return make_frame(t)[:, :, 3] / 255.0
-
-    rgb  = VideoClip(lambda t: make_frame(t)[:, :, :3], duration=duration)
-    mask = VideoClip(make_mask, duration=duration, is_mask=True)
+    rgb  = VideoClip(lambda t: make_frame(t)[:,:,:3], duration=duration)
+    mask = VideoClip(lambda t: make_frame(t)[:,:,3]/255.0, duration=duration, is_mask=True)
     return rgb.with_mask(mask).with_fps(24)
 
 
-# ──────────────────────────────────────────────────────────────
-#  5. Main video creator
-# ──────────────────────────────────────────────────────────────
+# ── 4. Funny Subtitle ─────────────────────────────────────────
+
+def make_subtitle_clip(narration: str, joke: str, duration: float) -> VideoClip:
+    bar_h = 115
+
+    def make_frame(t):
+        canvas = Image.new("RGBA", (VIDEO_W, VIDEO_H), (0,0,0,0))
+        draw   = ImageDraw.Draw(canvas)
+
+        for y in range(bar_h):
+            alpha = int(195 * (1 - y/bar_h*0.4))
+            draw.line([(0, VIDEO_H-bar_h+y), (VIDEO_W, VIDEO_H-bar_h+y)],
+                      fill=(10, 10, 40, alpha))
+
+        text = narration[:70] + "..." if len(narration) > 70 else narration
+        try:
+            font = ImageFont.load_default(size=33)
+        except TypeError:
+            font = ImageFont.load_default()
+
+        draw.text((VIDEO_W//2+2, VIDEO_H-bar_h//2+2), text,
+                  fill=(0,0,0,200), anchor="mm", font=font)
+        draw.text((VIDEO_W//2, VIDEO_H-bar_h//2), text,
+                  fill=(255,255,255,255), anchor="mm", font=font)
+
+        # joke flash শেষ ১.৫s
+        if joke and t > duration - 1.5:
+            blink = int(t * 6) % 2 == 0
+            jcolor = (255, 230, 50, 230) if blink else (255, 200, 0, 220)
+            try:
+                jfont = ImageFont.load_default(size=28)
+            except TypeError:
+                jfont = ImageFont.load_default()
+            draw.text((VIDEO_W//2, VIDEO_H-bar_h-30),
+                      f"😂 {joke[:60]}", fill=jcolor, anchor="mm", font=jfont)
+
+        return np.array(canvas)
+
+    rgb  = VideoClip(lambda t: make_frame(t)[:,:,:3], duration=duration)
+    mask = VideoClip(lambda t: make_frame(t)[:,:,3]/255.0, duration=duration, is_mask=True)
+    return rgb.with_mask(mask).with_fps(24)
+
+
+# ── 5. Main ───────────────────────────────────────────────────
 
 def create_video(scenes: list, image_paths: list, audio_paths: list,
                  output_filename: str, music_path: str = None) -> str:
-    """
-    প্রতিটি scene-এ:
-      Background (AI image, Ken Burns)  ← পেছনে
-      + Character (animated presenter)  ← সামনে
-      + Subtitle bar                    ← নিচে
-      + Voiceover audio
-    """
-    print("\n🎬 Video তৈরি হচ্ছে (Character-driven mode)...")
+
+    print("\n🎬 Funny Character Video তৈরি হচ্ছে...")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # Character একবার load
     char_img = get_character_image()
-    if char_img is None:
-        print("  ⚠️ Character ছাড়াই চলবে")
-
-    VIDEO_W, VIDEO_H = 1920, 1080
-    effects = ["in", "out", "pan_right", "pan_left"]
-    sides   = ["right", "left"]
-    clips   = []
+    effects  = ["in", "out", "pan_right", "pan_left"]
+    sides    = ["right", "left"]
+    clips    = []
 
     for i, (scene, img_path, audio_path) in enumerate(
             zip(scenes, image_paths, audio_paths)):
-        print(f"  🎞️  Scene {i+1}/{len(scenes)} তৈরি হচ্ছে...")
+
+        emotion = scene.get("character_emotion", "default")
+        joke    = scene.get("joke", "")
+        print(f"  🎭 Scene {i+1}/{len(scenes)} — {emotion}")
 
         try:
-            audio_clip = AudioFileClip(audio_path)
-            duration   = audio_clip.duration
+            audio = AudioFileClip(audio_path)
+            dur   = audio.duration
 
-            # ── Layer 1: Background ──
-            bg = make_background_clip(img_path, duration, effects[i % len(effects)])
-
+            bg     = make_background_clip(img_path, dur, effects[i % len(effects)])
             layers = [bg]
 
-            # ── Layer 2: Character ──
             if char_img is not None:
-                side     = sides[i % len(sides)]
-                entrance = (i == 0)  # শুধু প্রথম scene-এ slide-in
-                char_clip = make_character_frames(
-                    char_img, VIDEO_W, VIDEO_H, duration, side, entrance)
+                char_clip = make_character_clip(
+                    char_img, dur, emotion,
+                    side     = sides[i % len(sides)],
+                    entrance = (i == 0)
+                )
                 layers.append(char_clip)
 
-            # ── Layer 3: Subtitle ──
-            sub = make_subtitle_clip(scene["narration"], VIDEO_W, VIDEO_H, duration)
+            sub = make_subtitle_clip(scene["narration"], joke, dur)
             layers.append(sub)
 
-            # ── Composite ──
-            composite = CompositeVideoClip(layers, size=(VIDEO_W, VIDEO_H))
-            composite = composite.with_audio(audio_clip).with_fps(24)
-
-            clips.append(composite)
+            comp = CompositeVideoClip(layers, size=(VIDEO_W, VIDEO_H))
+            comp = comp.with_audio(audio).with_fps(24)
+            clips.append(comp)
 
         except Exception as e:
             print(f"  ⚠️ Scene {i+1} error: {e}")
@@ -300,31 +265,20 @@ def create_video(scenes: list, image_paths: list, audio_paths: list,
     print("  🔗 Clips জোড়া লাগানো হচ্ছে...")
     final = concatenate_videoclips(clips, method="compose")
 
-    # ── Background Music ──
     if music_path and os.path.exists(music_path):
-        print(f"  🎵 Background music মেশানো হচ্ছে...")
         try:
-            bg_music = AudioFileClip(music_path).with_volume_scaled(0.1)
-            if bg_music.duration < final.duration:
-                # Loop করা
-                repeats = int(final.duration / bg_music.duration) + 1
-                from moviepy import concatenate_audioclips
-                bg_music = concatenate_audioclips([bg_music] * repeats)
-            bg_music = bg_music.with_section(0, final.duration)
-            mixed = CompositeAudioClip([final.audio, bg_music])
-            final = final.with_audio(mixed)
+            from moviepy import concatenate_audioclips
+            bgm = AudioFileClip(music_path).with_volume_scaled(0.12)
+            if bgm.duration < final.duration:
+                n   = int(final.duration / bgm.duration) + 1
+                bgm = concatenate_audioclips([bgm] * n)
+            bgm   = bgm.with_section(0, final.duration)
+            final = final.with_audio(CompositeAudioClip([final.audio, bgm]))
         except Exception as e:
             print(f"  ⚠️ Music error: {e}")
 
-    output_path = os.path.join(OUTPUT_DIR, output_filename)
-    print("  💾 Video export হচ্ছে (কিছুটা সময় লাগবে)...")
-    final.write_videofile(
-        output_path,
-        fps=24,
-        codec="libx264",
-        audio_codec="aac",
-        logger=None
-    )
-
-    print(f"  ✅ Video তৈরি হয়েছে: {output_path}")
-    return output_path
+    out = os.path.join(OUTPUT_DIR, output_filename)
+    print("  💾 Export হচ্ছে...")
+    final.write_videofile(out, fps=24, codec="libx264", audio_codec="aac", logger=None)
+    print(f"  ✅ Done: {out}")
+    return out
