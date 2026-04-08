@@ -1,33 +1,20 @@
 # modules/script_generator.py
 # Google Gemini দিয়ে channel-এর topic অনুযায়ী script তৈরি করে
+# ✅ Updated: google.generativeai → google.genai (নতুন package)
 
-import google.generativeai as genai
+from google import genai
 import json, sys, os, datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import GOOGLE_API_KEY, SCENES_PER_VIDEO
+
+# নতুন model name (gemini-2.0-flash)
+MODEL = "gemini-2.0-flash"
 
 
 def generate_script(topic: str, channel_style: str = "", topic_type: str = "funny") -> dict:
     print(f"📝 Script তৈরি হচ্ছে: '{topic}' [{topic_type}]")
 
-    genai.configure(api_key=GOOGLE_API_KEY)
-    
-    # Try multiple model names for compatibility
-    model_names = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-pro"]
-    model = None
-    
-    for name in model_names:
-        try:
-            model = genai.GenerativeModel(name)
-            # Test if model is available by doing a very small generation if needed, 
-            # but usually just initializing is fine. We'll try to generate below.
-            break
-        except Exception:
-            continue
-            
-    if not model:
-        print("❌ No compatible Gemini model found.")
-        return {"title": topic, "scenes": []}
+    client = genai.Client(api_key=GOOGLE_API_KEY)
 
     style_instructions = {
         "funny": "Use Bengali slang, jokes, puns, exaggerated humor. Tone: like a funny friend telling a story.",
@@ -71,7 +58,10 @@ Make exactly {SCENES_PER_VIDEO} scenes.
 """
 
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt
+        )
         text = response.text.strip()
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
@@ -83,26 +73,13 @@ Make exactly {SCENES_PER_VIDEO} scenes.
         return data
     except Exception as e:
         print(f"❌ Script generation error: {e}")
-        # Fallback empty structure
         return {"title": topic, "scenes": []}
 
 
 def get_trending_topic(topic_type: str = "funny", topic_description: str = "") -> str:
-    genai.configure(api_key=GOOGLE_API_KEY)
-    
-    model_names = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-pro"]
-    model = None
-    for name in model_names:
-        try:
-            model = genai.GenerativeModel(name)
-            break
-        except Exception:
-            continue
-            
-    if not model:
-        return f"বাংলাদেশের আজকের সেরা মুহূর্ত 🔥"
+    client = genai.Client(api_key=GOOGLE_API_KEY)
 
-    date  = datetime.date.today().strftime("%B %d, %Y")
+    date = datetime.date.today().strftime("%B %d, %Y")
 
     prompt = f"""Today is {date}.
 Find ONE viral/trending topic in Bangladesh for a {topic_type} Bengali animation channel.
@@ -112,8 +89,11 @@ Return ONLY the topic in Bengali with a relevant emoji. No explanation.
 Example: "বিদ্যুৎ বিল দেখে মধ্যবিত্তের হার্ট অ্যাটাক 😂"
 """
     try:
-        resp  = model.generate_content(prompt)
-        topic = resp.text.strip()
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt
+        )
+        topic = response.text.strip()
         print(f"💡 Trending Topic [{topic_type}]: {topic}")
         return topic
     except Exception as e:
