@@ -8,26 +8,45 @@ from dotenv import load_dotenv
 # .env ফাইল থেকে environment variables লোড করা
 load_dotenv()
 
-# ✅ Telegram Bot — মোবাইলে notification (ফ্রি)
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
+# ✅ Colab Secrets সাপোর্ট (যদি Colab-এ রান করা হয়)
+try:
+    from google.colab import userdata
+    COLAB_AVAILABLE = True
+except ImportError:
+    COLAB_AVAILABLE = False
 
-# ✅ Google Gemini — script লেখার জন্য (ফ্রি)
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GROQ_API_KEY  = os.getenv("GROQ_API_KEY")
+def get_secret(key, default=None):
+    """Colab Secrets অথবা Environment Variables থেকে ডেটা আনে।"""
+    if COLAB_AVAILABLE:
+        try:
+            return userdata.get(key)
+        except:
+            pass
+    return os.getenv(key, default)
+
+# ✅ API Keys লোড করা
+TELEGRAM_BOT_TOKEN = get_secret("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID   = get_secret("TELEGRAM_CHAT_ID")
+GOOGLE_API_KEY     = get_secret("GOOGLE_API_KEY")
+GROQ_API_KEY       = get_secret("GROQ_API_KEY")
+ELEVENLABS_API_KEY = get_secret("ELEVENLABS_API_KEY")
+
+# ✅ Dummy environment setup for Colab/Linux errors
+if COLAB_AVAILABLE or os.name != 'nt':
+    os.environ["XDG_RUNTIME_DIR"] = "/tmp/runtime-root"
+    os.makedirs(os.environ["XDG_RUNTIME_DIR"], exist_ok=True)
 
 # ✅ ElevenLabs — voiceover (মাসে ১০,০০০ chars ফ্রি)
-ELEVENLABS_API_KEY     = os.getenv("ELEVENLABS_API_KEY")
-ELEVENLABS_VOICE_ID_BN = os.getenv("ELEVENLABS_VOICE_ID_BN", "YOUR_BENGALI_VOICE_ID")
-ELEVENLABS_VOICE_ID_EN = os.getenv("ELEVENLABS_VOICE_ID_EN", "YOUR_ENGLISH_VOICE_ID")
-ELEVENLABS_VOICE_ID_HI = os.getenv("ELEVENLABS_VOICE_ID_HI", "DpnM70iDHNHZ0Mguv6GJ")
+ELEVENLABS_VOICE_ID_BN = get_secret("ELEVENLABS_VOICE_ID_BN", "YOUR_BENGALI_VOICE_ID")
+ELEVENLABS_VOICE_ID_EN = get_secret("ELEVENLABS_VOICE_ID_EN", "YOUR_ENGLISH_VOICE_ID")
+ELEVENLABS_VOICE_ID_HI = get_secret("ELEVENLABS_VOICE_ID_HI", "DpnM70iDHNHZ0Mguv6GJ")
 ELEVENLABS_VOICE_ID    = ELEVENLABS_VOICE_ID_HI  # Set Hindi as default since BN is unavailable
 
 # ✅ Google Cloud TTS — ElevenLabs শেষ হলে fallback (মাসে ১০ লাখ chars ফ্রি)
-GOOGLE_CLOUD_TTS_API_KEY = os.getenv("GOOGLE_CLOUD_TTS_API_KEY")
+GOOGLE_CLOUD_TTS_API_KEY = get_secret("GOOGLE_CLOUD_TTS_API_KEY")
 
 # ✅ Pixabay — background music (ফ্রি)
-PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
+PIXABAY_API_KEY = get_secret("PIXABAY_API_KEY")
 
 # ✅ YouTube client secret — ৩টা channel-এর জন্য আলাদা file
 # console.cloud.google.com থেকে প্রতিটা channel-এর OAuth credentials ডাউনলোড করুন
