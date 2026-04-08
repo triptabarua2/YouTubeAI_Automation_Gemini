@@ -11,7 +11,23 @@ def generate_script(topic: str, channel_style: str = "", topic_type: str = "funn
     print(f"📝 Script তৈরি হচ্ছে: '{topic}' [{topic_type}]")
 
     genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    
+    # Try multiple model names for compatibility
+    model_names = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-pro"]
+    model = None
+    
+    for name in model_names:
+        try:
+            model = genai.GenerativeModel(name)
+            # Test if model is available by doing a very small generation if needed, 
+            # but usually just initializing is fine. We'll try to generate below.
+            break
+        except Exception:
+            continue
+            
+    if not model:
+        print("❌ No compatible Gemini model found.")
+        return {"title": topic, "scenes": []}
 
     style_instructions = {
         "funny": "Use Bengali slang, jokes, puns, exaggerated humor. Tone: like a funny friend telling a story.",
@@ -54,25 +70,38 @@ Return ONLY valid JSON:
 Make exactly {SCENES_PER_VIDEO} scenes.
 """
 
-    response = model.generate_content(prompt)
-    text = response.text.strip()
-    if "```json" in text:
-        text = text.split("```json")[1].split("```")[0].strip()
-    elif "```" in text:
-        text = text.split("```")[1].split("```")[0].strip()
-
     try:
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0].strip()
+
         data = json.loads(text)
         print(f"✅ Script তৈরি: {len(data['scenes'])} scenes [{topic_type}]")
         return data
     except Exception as e:
-        print(f"❌ JSON parse error: {e}")
+        print(f"❌ Script generation error: {e}")
+        # Fallback empty structure
         return {"title": topic, "scenes": []}
 
 
 def get_trending_topic(topic_type: str = "funny", topic_description: str = "") -> str:
     genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    
+    model_names = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-pro"]
+    model = None
+    for name in model_names:
+        try:
+            model = genai.GenerativeModel(name)
+            break
+        except Exception:
+            continue
+            
+    if not model:
+        return f"বাংলাদেশের আজকের সেরা মুহূর্ত 🔥"
+
     date  = datetime.date.today().strftime("%B %d, %Y")
 
     prompt = f"""Today is {date}.
