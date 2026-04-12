@@ -1,83 +1,146 @@
-# 🎬 YouTube AI Full Automation — সেটআপ গাইড (আপডেটেড)
+# 🎬 YouTube AI Animation — সম্পূর্ণ সেটআপ গাইড
 
-## এই system কী করবে?
+## এই system কী করে?
+
 ```
-আপনি কিছু না করলেও প্রতিদিন ৩টি আলাদা চ্যানেলে:
-Topic বাছাই → Script লেখা → AI Image বানানো → 
-Multi-language Voiceover দেওয়া → Video Edit → YouTube Upload (অটোমেটিক শিডিউল)
+🤖 AI Topic বাছাই (Groq/Llama)
+   ↓
+📝 Script লেখা (৮টি scene, Bengali/Hindi/English)
+   ↓
+🎨 AI Animation Images (Pollinations.ai — FREE, no key!)
+   ↓
+🎤 Voiceover (ElevenLabs বা gTTS fallback)
+   ↓
+🎬 Animation Video তৈরি:
+   • Animated intro title card
+   • Ken Burns background effects
+   • Emotion-based character animations
+   • Speech bubbles (funny channel)
+   • Typewriter subtitles
+   • Floating particles
+   • Flash transitions between scenes
+   • Subscribe/outro animation
+   ↓
+📤 YouTube Auto-Upload (Private, তুমি Public করবে)
+   ↓
+📱 Telegram Notification
 ```
 
 ---
 
-## ধাপ ১ — Python ইনস্টল করুন
-👉 https://python.org/downloads (3.10 বা উপরে)
+## ⚡ Quick Start (সবচেয়ে সহজ পথ)
 
----
-
-## ধাপ ২ — Libraries ইনস্টল করুন
+### ধাপ ১ — Requirements install
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
-## ধাপ ৩ — API Keys সংগ্রহ করুন
-
-### A) Google API Key (Gemini — Script লেখার জন্য)
-1.  https://aistudio.google.com/app/apikey যান
-2.  একটি নতুন API Key তৈরি করুন এবং কপি করুন।
-3.  `config.py` তে `GOOGLE_API_KEY = "..."` এখানে বসান। (ভবিষ্যতে `.env` ফাইল ব্যবহার করার পরামর্শ দেওয়া হচ্ছে)
-
-### B) ElevenLabs API Key (Voiceover — বাংলা, English, হিন্দি voice)
-1.  https://elevenlabs.io যান
-2.  Free Sign Up করুন এবং API Key কপি করুন।
-3.  Voices → Voice Library থেকে আপনার পছন্দের ভয়েস বেছে নিন এবং তাদের Voice ID কপি করুন।
-4.  `config.py` তে `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID_BN`, `ELEVENLABS_VOICE_ID_EN`, `ELEVENLABS_VOICE_ID_HI` এখানে বসান।
-
-### C) YouTube API (Upload করার জন্য)
-1.  https://console.cloud.google.com যান এবং ৩টি চ্যানেলের জন্য আলাদা OAuth 2.0 Client ID তৈরি করুন।
-2.  JSON ফাইলগুলো ডাউনলোড করে এই নামে সেভ করুন:
-    - `client_secret_channel1.json`
-    - `client_secret_channel2.json`
-    - `client_secret_channel3.json`
-
----
-
-## ধাপ ৪ — ৩টি চ্যানেলের সেটিংস (config.py)
-আপনার ৩টি আলাদা চ্যানেলের জন্য `config.py` ফাইলে নিচের সেটিংসগুলো চেক করে নিন:
-- **Channel 1:** Funny (সকাল ৯টা)
-- **Channel 2:** Educational (দুপুর ১টা)
-- **Channel 3:** Storytelling (রাত ৮টা)
-
----
-
-## ধাপ ৫ — Run করুন!
-
-### নির্দিষ্ট একটি চ্যানেল চালানো:
+### ধাপ ২ — API Keys সেটআপ
 ```bash
+cp .env.example .env
+# .env ফাইল খোলো এবং keys বসাও
+```
+
+### ধাপ ৩ — Run!
+```bash
+# Test করো (YouTube upload ছাড়া)
+python demo_runner.py
+
+# একটি channel চালাও
 python main.py --channel channel_1 --auto-upload
-```
 
-### ৩টি চ্যানেল একসাথে চালানো (একটার পর একটা):
-```bash
+# সব channel একসাথে
 python main.py --all --auto-upload
-```
 
-### প্রতিদিন অটোমেটিক (Schedule Mode):
-```bash
+# প্রতিদিন schedule
 python main.py --schedule
 ```
-> এটা চালিয়ে রাখলে `config.py` তে দেওয়া সময়ে প্রতিদিন ৩টি চ্যানেলে ভিডিও আপলোড হবে!
 
 ---
 
-## নিরাপত্তা ও সতর্কতা (Security Warning)
-- আপনার `config.py` ফাইলে সরাসরি API Key দেওয়া আছে। এগুলো কখনোই পাবলিকলি শেয়ার করবেন না।
-- `.gitignore` ফাইলে আপনার সিক্রেট ফাইলগুলো (`client_secret*.json`, `token*.pickle`) অলরেডি অ্যাড করা আছে, তাই এগুলো গিথাবে আপলোড হবে না।
+## 🔑 API Keys — কোথায় পাবে
+
+### 1. Groq API Key (Script — সম্পূর্ণ ফ্রি)
+1. যাও: https://console.groq.com
+2. Sign up → API Keys → Create
+3. `.env`-এ `GROQ_API_KEY=` এখানে বসাও
+
+### 2. ElevenLabs (Voice — মাসে 10,000 chars ফ্রি)
+1. যাও: https://elevenlabs.io → Sign up
+2. Profile → API Key কপি করো
+3. Voice Library → বাংলা voice বেছে Voice ID কপি করো
+4. `.env`-এ বসাও
+
+   **💡 Tip:** ElevenLabs না থাকলেও চলবে — gTTS (Google Text-to-Speech) দিয়ে fallback হবে! সম্পূর্ণ ফ্রি।
+
+### 3. YouTube API (Upload — সবচেয়ে গুরুত্বপূর্ণ)
+1. যাও: https://console.cloud.google.com
+2. নতুন Project বানাও
+3. "APIs & Services" → "Enable APIs" → "YouTube Data API v3" Enable করো
+4. "Credentials" → "Create Credentials" → "OAuth 2.0 Client ID"
+5. Application type: **Desktop app**
+6. JSON download করো → নাম দাও `client_secret_channel1.json`
+7. প্রজেক্ট ফোল্ডারে রাখো
+8. **প্রথমবার run করলে browser খুলবে** → YouTube account দিয়ে login করো
 
 ---
 
-## সমস্যা হলে
-- `video_log.json` দেখুন — ভিডিও তৈরির হিস্ট্রি এবং এরর এখানে পাবেন।
-- `output/` ফোল্ডারে প্রতিটি চ্যানেলের আলাদা আউটপুট ভিডিও এবং স্ক্রিপ্ট সেভ হবে।
-- যদি ভিডিও এডিটরে কোনো সমস্যা হয়, তবে `modules/video_editor.py`-তে ফন্ট সেটিংস চেক করুন।
+## 📁 ফাইল স্ট্রাকচার
+
+```
+YouTubeAI_Animation/
+├── .env                          ← তোমার API keys (গোপন রাখো!)
+├── .env.example                  ← template
+├── config.py                     ← channel settings
+├── main.py                       ← main pipeline
+├── demo_runner.py                ← upload ছাড়া test
+├── requirements.txt
+├── assets/
+│   ├── character.png             ← তোমার character (পরিবর্তন করো!)
+│   └── Kalpurush.ttf            ← বাংলা font
+├── modules/
+│   ├── animation_effects.py     ← 🆕 সব animation effects
+│   ├── video_editor.py          ← 🆕 Animation video pipeline
+│   ├── image_generator.py       ← 🆕 Better AI image prompts
+│   ├── script_generator.py      ← Groq দিয়ে script
+│   ├── voiceover.py             ← ElevenLabs/gTTS voice
+│   ├── youtube_uploader.py      ← YouTube upload
+│   ├── music_manager.py         ← Background music
+│   └── notifier.py              ← Telegram notification
+├── output/                       ← তৈরি videos এখানে
+└── video_log.json               ← upload history
+```
+
+---
+
+## 🎭 Animation Features (নতুন!)
+
+| Feature | বিবরণ |
+|---------|--------|
+| 🎬 Animated Intro | Title zoom-in with bounce + particles |
+| 🌅 Ken Burns Effect | Background zoom/pan animations |
+| 👤 Character Emotions | shocked/laughing/jumping/scared/etc |
+| 💬 Speech Bubbles | Animated bubble (funny channel) |
+| ✍️ Typewriter Subtitles | Bengali text types itself |
+| ✨ Floating Particles | Topic-colored sparkles |
+| ⚡ Flash Transitions | Between each scene |
+| 📱 Subscribe Outro | Animated subscribe button |
+
+---
+
+## 🎨 Character পরিবর্তন করতে
+
+`assets/character.png` ফাইলটা replace করো।
+- যেকোনো cartoon character PNG
+- White বা transparent background
+- Tall portrait orientation (3:4 ratio ভালো)
+
+---
+
+## ⚠️ সমস্যা হলে
+
+- `video_log.json` — error history
+- `output/` — তৈরি videos
+- ElevenLabs কাজ না করলে → gTTS automatically use হবে
+- Image তৈরি না হলে → gradient placeholder use হবে
+- YouTube upload এ error → `token_channel1.pickle` ডিলিট করে আবার run করো

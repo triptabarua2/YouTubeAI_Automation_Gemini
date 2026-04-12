@@ -106,7 +106,7 @@ def run_pipeline(channel_id: str, topic: str = None, auto_upload: bool = False):
     # ── STEP 3: Images ─────────────────────────────────────────
     print(f"\n[3/7] 🎨 AI Images তৈরি হচ্ছে ({len(scenes)}টি)...")
     try:
-        image_paths = generate_all_scene_images(scenes, temp_dir=temp_dir)
+        image_paths = generate_all_scene_images(scenes, temp_dir=temp_dir, topic=ch["topic"])
         thumbnail_path = generate_thumbnail(
             script_data.get("thumbnail_prompt", topic),
             script_data.get("title", topic),
