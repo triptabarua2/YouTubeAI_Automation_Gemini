@@ -25,13 +25,28 @@ def get_youtube_service(client_secret: str, token_file: str):
             creds.refresh(Request())
         else:
             flow  = InstalledAppFlow.from_client_secrets_file(client_secret, SCOPES)
+            # In Colab/Remote environments, run_local_server won't work easily for the user.
+            # We use run_local_server with console fallback.
             try:
-                # Try to run local server (works if browser is available)
-                creds = flow.run_local_server(port=0, open_browser=False)
-            except Exception:
-                # Fallback for environments without browser access
-                print("\n⚠️  Browser open failed. Please use the following link to authorize:")
-                creds = flow.run_console()
+                # This will work if the user can port forward, but for Colab, 
+                # it's better to provide the console flow or a specific Colab fix.
+                print("\n🔐 YouTube Authorization শুরু হচ্ছে...")
+                creds = flow.run_local_server(
+                    port=0, 
+                    open_browser=False,
+                    authorization_prompt_message='নিচের লিঙ্কে ক্লিক করে authorize করুন:\n{url}',
+                    success_message='Authorization সফল! আপনি এখন এই ট্যাবটি বন্ধ করতে পারেন।'
+                )
+            except Exception as e:
+                print(f"\n⚠️  Local server failed: {e}")
+                print("Manual console flow ব্যবহার করা হচ্ছে...")
+                # Note: run_console() is deprecated in newer google-auth-oauthlib, 
+                # but often used as fallback. For Colab, we can use the URL.
+                auth_url, _ = flow.authorization_url(prompt='consent')
+                print(f"\n1. এই লিঙ্কে যান: {auth_url}")
+                code = input("2. Authorization code এখানে পেস্ট করুন: ")
+                flow.fetch_token(code=code)
+                creds = flow.credentials
         with open(token_file, "wb") as f:
             pickle.dump(creds, f)
     return build("youtube", "v3", credentials=creds)
